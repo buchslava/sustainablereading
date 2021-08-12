@@ -4,16 +4,25 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/enriquebris/goconcurrentqueue"
 )
 
-var queue = goconcurrentqueue.NewFIFO()
-var total = 50
-var current = 0
+const (
+	Total = 50
+)
 
-func read(url string, ch chan<- string) {
+var ops uint64
+var queue = goconcurrentqueue.NewFIFO()
+
+func TimeLabel() string {
+	currentTime := time.Now()
+	return currentTime.Format("15:04:05")
+}
+
+func Read(url string, ch chan<- string) {
 	// fmt.Println("Trying to read ", url)
 
 	resp, err := http.Get(url)
@@ -38,27 +47,25 @@ func read(url string, ch chan<- string) {
 		return
 	}
 
-	current = current + 1
-	currentTime := time.Now()
-	fmt.Println(currentTime.Format("15:04:05"), "Finished ", url, string(body), current, " of ", total)
+	atomic.AddUint64(&ops, 1)
+	fmt.Println(TimeLabel(), "Finished ", url, string(body), ops, " of ", Total)
 }
 
-func fill(ch chan<- string) {
-	for i := 1; i < total+1; i++ {
+func Fill(ch chan<- string) {
+	for i := 1; i < Total+1; i++ {
 		ch <- fmt.Sprintf("http://localhost:3100/data%d", i)
 	}
 }
 
-func process() {
+func Process() {
 	ch := make(chan string)
 	onTimer := false
 	for {
 		select {
 		case badUrl := <-ch:
 			queue.Enqueue(badUrl)
-			currentTime := time.Now()
 			if onTimer == false {
-				fmt.Println(currentTime.Format("15:04:05"), "pause...")
+				fmt.Println(TimeLabel(), "pause...")
 				<-time.After(10 * time.Second)
 			}
 			onTimer = true
@@ -72,7 +79,7 @@ func process() {
 					continue
 				}
 
-				go read(url.(string), ch)
+				go Read(url.(string), ch)
 			}
 		}
 	}
@@ -81,8 +88,8 @@ func process() {
 func main() {
 	ch := make(chan string)
 
-	go fill(ch)
-	go process()
+	go Fill(ch)
+	go Process()
 
 	for {
 		select {
