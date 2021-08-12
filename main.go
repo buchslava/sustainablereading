@@ -10,6 +10,8 @@ import (
 )
 
 var queue = goconcurrentqueue.NewFIFO()
+var total = 50
+var current = 0
 
 func read(url string, ch chan<- string) {
 	// fmt.Println("Trying to read ", url)
@@ -36,25 +38,32 @@ func read(url string, ch chan<- string) {
 		return
 	}
 
+	current = current + 1
 	currentTime := time.Now()
-	fmt.Println(currentTime.Format("15:04:05"), "Finished ", url, string(body))
+	fmt.Println(currentTime.Format("15:04:05"), "Finished ", url, string(body), current, " of ", total)
 }
 
 func fill(ch chan<- string) {
-	for i := 1; i < 21; i++ {
+	for i := 1; i < total+1; i++ {
 		ch <- fmt.Sprintf("http://localhost:3100/data%d", i)
 	}
 }
 
 func process() {
 	ch := make(chan string)
+	onTimer := false
 	for {
 		select {
 		case badUrl := <-ch:
 			queue.Enqueue(badUrl)
-			// fmt.Println("pause...")
-			<-time.After(10 * time.Second)
+			currentTime := time.Now()
+			if onTimer == false {
+				fmt.Println(currentTime.Format("15:04:05"), "pause...")
+				<-time.After(10 * time.Second)
+			}
+			onTimer = true
 		default:
+			onTimer = false
 			if queue.GetLen() > 0 {
 				url, err := queue.Dequeue()
 
