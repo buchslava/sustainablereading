@@ -2,7 +2,7 @@ const express = require("express");
 const app = express();
 const port = 3100;
 
-const QTY_LIMIT = 3;
+const QTY_LIMIT = 4;
 const TIME_LIMIT = 30;
 const times = [];
 const seconds = (d) => d.getTime() / 1000;
@@ -17,7 +17,7 @@ function allow() {
     }
   }
 
-  return qty <= QTY_LIMIT;
+  return qty < QTY_LIMIT;
 }
 
 for (let i = 1; i < 100; i++) {
