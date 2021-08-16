@@ -125,7 +125,7 @@ sr := sustainablereading.NewSustainableReading(10, ch)
 and pass a communication channel into it.
 Pay attention to the first parameter (10). This means waiting 10 seconds after trying to fall. You can of course choose another one, say 100 or 5 seconds ...
 
-3. Now you can tell the main logic about new URL (URLs):
+3. Now you can tell the main logic about new URL (URLs)
 
 ```go
 sr.Add("http://localhost:3100/data1")
@@ -133,7 +133,9 @@ sr.Add("http://localhost:3100/data2")
 //...
 ```
 
-4. You are ready for interaction with the main logic:
+You can also add a new url a little later when the main logic works.
+
+4. It's time to interact with the main logic
 
 ```go
 	for {
