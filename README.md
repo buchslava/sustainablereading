@@ -237,7 +237,7 @@ go run demo.go
 We will get the result in Terminal # 2 something like this
 
 ```
-go run demo.go                                                                                                                                    [0118290]
+go run demo.go
 16:44:37 1 of 50 http://localhost:3100/data26 rDfALKPUHONspAAQpVFj
 16:44:37 2 of 50 http://localhost:3100/data25 EbLUAialtVHPwthwniJT
 16:44:37 3 of 50 http://localhost:3100/data27 AJiwbSilKCsjRnRJcsmp
