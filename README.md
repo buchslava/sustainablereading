@@ -206,7 +206,7 @@ if msg.Kind == sustainablereading.Data {
 }
 ```
 
-- If there are no messages and all of the URLs are processed then break a main loop:
+- If there are no messages and all of the URLs are processed successfully then break a main loop:
 
 ```go
 default:
