@@ -10,6 +10,8 @@ import (
 
 type Type int
 
+type Readable func(url string, ch chan<- string, msg chan Event)
+
 const (
 	Data Type = iota
 	Pause
@@ -26,10 +28,11 @@ type Event struct {
 }
 
 type Config struct {
-	Timeout int
-	Queue   *goconcurrentqueue.FIFO
-	Msg     chan Event
-	Control chan Type
+	Timeout      int
+	Queue        *goconcurrentqueue.FIFO
+	Msg          chan Event
+	Control      chan Type
+	CustomReader Readable
 }
 
 func NewSustainableReading(timeout int, ch chan Event) *Config {
@@ -41,6 +44,10 @@ func NewSustainableReading(timeout int, ch chan Event) *Config {
 	go ret.Process()
 
 	return ret
+}
+
+func (sr *Config) SetCustomReader(r Readable) {
+	sr.CustomReader = r
 }
 
 func (sr *Config) Add(url string) {
@@ -80,7 +87,11 @@ func (sr *Config) Process() {
 					continue
 				}
 
-				go Read(url.(string), ch, sr.Msg)
+				if sr.CustomReader != nil {
+					go sr.CustomReader(url.(string), ch, sr.Msg)
+				} else {
+					go Read(url.(string), ch, sr.Msg)
+				}
 			}
 		}
 	}
