@@ -22,7 +22,11 @@ cd stub
 go run stub.go
 ```
 
-This solution uses port 3100 by default. If you want to use another one, do the following: `go run stub go <YOUR_PORT>`
+This solution uses port 3100 by default. If you want to use another one, do the following:
+
+```
+go run stub go <YOUR_PORT>
+```
 
 Run `go run stub go 3200` if you want to run the application on port 3200
 
@@ -44,13 +48,17 @@ One important thing. If you want to run the demo application, you must first run
 
 - In Terminal #1
 
-`cd stub`
-`go run stub.go`
+```
+cd stub
+go run stub.go
+```
 
 - In Terminal #2
 
-`cd demo`
-`go run demo.go`
+```
+cd demo
+go run demo.go
+```
 
 ### Brief explanation
 
@@ -151,58 +159,61 @@ You can also add a new url a little later when the main logic works.
 
 5. There is the following logic in the [basic example](https://github.com/buchslava/sustainablereading/blob/master/demo/demo.go)
 
+
+- Make a communication channel, main logic object and add 50 URLs to be processed
+- Wait for messages from the main logic: `case msg := <-ch:`
+
 ```go
 // ...
 const (
 	Total = 50
 )
-// ...
-	ch := make(chan sustainablereading.Event)
-	sr := sustainablereading.NewSustainableReading(10, ch)
-	current := 1
 
-	for i := 1; i < Total+1; i++ {
-		sr.Add(fmt.Sprintf("http://localhost:3100/data%d", i))
-	}
+// ...
+
+ch := make(chan sustainablereading.Event)
+sr := sustainablereading.NewSustainableReading(10, ch)
+current := 1
+
+for i := 1; i < Total+1; i++ {
+  sr.Add(fmt.Sprintf("http://localhost:3100/data%d", i))
+}
 
 Loop:
-	for {
-		select {
-		case msg := <-ch:
-			if msg.Kind == sustainablereading.Data {
-				fmt.Println(TimeLabel(), current, "of", Total, msg.Url, string(msg.Data.([]byte)))
-				current = current + 1
-			}
-    // ...
-    default:
-			if current > Total {
-				sr.Stop()
-				break Loop
-			}
+for {
+	select {
+	case msg := <-ch:
+		if msg.Kind == sustainablereading.Data {
+			fmt.Println(TimeLabel(), current, "of", Total, msg.Url, string(msg.Data.([]byte)))
+			current = current + 1
+		}
+   // ...
+   default:
+		if current > Total {
+			sr.Stop()
+			break Loop
 		}
 	}
+}
 ```
 
-- Make a communication channel, main logic object and add 50 URLs to be processed
-- Wait for messages from the main logic: `case msg := <-ch:`
 - If a URL processed successfully print the result and increase a counter:
 
 ```go
-			if msg.Kind == sustainablereading.Data {
-				fmt.Println(TimeLabel(), current, "of", Total, msg.Url, string(msg.Data.([]byte)))
-				current = current + 1
-			}
+if msg.Kind == sustainablereading.Data {
+	fmt.Println(TimeLabel(), current, "of", Total, msg.Url, string(msg.Data.([]byte)))
+	current = current + 1
+}
 ```
 
 - If there are no messages and all of the URLs are processed then break a main loop:
 
 ```go
-    default:
-			if current > Total {
-				sr.Stop()
-				break Loop
-			}
-		}
+default:
+ if current > Total {
+  	sr.Stop()
+	  break Loop
+  }
 ```
 
 ## Classes diagram
