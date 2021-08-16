@@ -267,7 +267,7 @@ import (
 	"fmt"
 	"time"
 
-	"sustainablereading"
+	"github.com/buchslava/sustainablereading"
 )
 
 const (
