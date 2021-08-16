@@ -79,7 +79,7 @@ func main() {
 	a := App{}
 
 	port := "3100"
-	if len(os.Args) < 1 {
+	if len(os.Args) > 1 {
 		port = os.Args[1]
 	}
 
