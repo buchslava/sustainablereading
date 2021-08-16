@@ -17,12 +17,14 @@ In terms of functionality above, it makes sense to have a test application that 
 
 ### How to run
 
-`cd stub`
-`go run stub.go`
+```
+cd stub
+go run stub.go
+```
 
-This solution uses port 3100 by default. If you want to use another one, do the following: "go run stub go <YOUR_PORT>"
+This solution uses port 3100 by default. If you want to use another one, do the following: `go run stub go <YOUR_PORT>`
 
-`go run stub go 3200` if you want to run the application on port 3200
+Run `go run stub go 3200` if you want to run the application on port 3200
 
 Also [here](https://github.com/buchslava/sustainablereading/blob/master/stub/stub.go#L14-L15) you can change the rule regarding reading restrictions.
 
@@ -30,7 +32,7 @@ In addition, you can run the application many times on different ports.
 
 ### How to use
 
-The Test Environment application works as follows. It creates 99 endpoints `http://localhost/data1` -- `http://localhost/data99`. Each of them prints a random string and gives a status code 200 in case of a successful call. Otherwise, it gives a 403 status code and a "Forbidden" message. So, if you run the app and call, say, `http://localhost/data1` 4 times immediately it will be ok. The fifth time will fail. You got a proper result after some timeout. It's 10 seconds in the demo application (see below).
+The Test Environment application works as follows. It creates 99 endpoints `http://localhost/data1` -- `http://localhost/data99`. Each of them prints a [random string and gives a status code 200](https://github.com/buchslava/sustainablereading/blob/master/stub/stub.go#L54-L55) in case of a successful call. Otherwise, it gives a [403 status code and a "forbidden"](https://github.com/buchslava/sustainablereading/blob/master/stub/stub.go#L50-L51) message. So, if you run the app and call, say, `http://localhost/data1` 4 times immediately it will be ok. The fifth time will fail. You got a proper result after some timeout. It's 10 seconds according to the demo application (see below).
 
 ## The basic example
 
@@ -61,7 +63,7 @@ import (
 	"fmt"
 	"time"
 
-	"sustainablereading"
+	"github.com/buchslava/sustainablereading"
 )
 
 const (
@@ -120,7 +122,10 @@ ch := make(chan sustainablereading.Event)
 sr := sustainablereading.NewSustainableReading(10, ch)
 ```
 
-and pass a communication channel into it. 3. Now you can tell the main logic about new URL (URLs):
+and pass a communication channel into it.
+Pay attention to the first parameter (10). This means waiting 10 seconds after trying to fall. You can of course choose another one, say 100 or 5 seconds ...
+
+3. Now you can tell the main logic about new URL (URLs):
 
 ```go
 sr.Add("http://localhost:3100/data1")
