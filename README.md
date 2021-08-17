@@ -38,7 +38,7 @@ This solution allows you to simulate the time delay in the processing of an HTTP
 go run stub go <YOUR_PORT> <DELAY IN SECONDS>
 ```
 
-Run `go run stub go 3100 10` if you want to run the application on port 3200 with a delay of 10 seconds per request.
+Run `go run stub go 3100 10` if you want to run the application on port 3100 with a delay of 10 seconds per request.
 
 In addition, you can run the application many times on different ports.
 
@@ -524,6 +524,8 @@ If you want to test this solution you need:
 Here's a brief illustration on how it works...
 
 ![Limit](images/limit.png)
+
+PS: Also, the [following solution](https://github.com/korovkin/limiter) would be useful to understand limitation idea
 
 ## Classes diagram
 
