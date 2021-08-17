@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"sustainablereading"
+	. "sustainablereading"
 )
 
 const (
@@ -13,10 +13,10 @@ const (
 )
 
 func main() {
-	chApi1 := make(chan sustainablereading.Event)
-	chApi2 := make(chan sustainablereading.Event)
-	srApi1 := sustainablereading.NewSustainableReading(10, chApi1)
-	srApi2 := sustainablereading.NewSustainableReading(20, chApi2)
+	chApi1 := make(chan Event)
+	chApi2 := make(chan Event)
+	srApi1 := NewSustainableReading(10, chApi1)
+	srApi2 := NewSustainableReading(20, chApi2)
 	currentApi1 := 1
 	currentApi2 := 1
 
@@ -44,17 +44,17 @@ Loop:
 	}
 }
 
-func GotMessage(api string, msg sustainablereading.Event, current *int, total int) {
+func GotMessage(api string, msg Event, current *int, total int) {
 	apiLabel := fmt.Sprintf("API#%s", api)
 
-	if msg.Kind == sustainablereading.Data {
+	if msg.Kind == Data {
 		fmt.Println(TimeLabel(), apiLabel, *current, "of", total, msg.Url, string(msg.Data.([]byte)))
 		*current = *current + 1
 	}
-	if msg.Kind == sustainablereading.Pause {
+	if msg.Kind == Pause {
 		fmt.Println(TimeLabel(), apiLabel, "...")
 	}
-	if msg.Kind == sustainablereading.SysError {
+	if msg.Kind == SysError {
 		fmt.Println(TimeLabel(), apiLabel, msg.Err)
 	}
 }
