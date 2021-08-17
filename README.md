@@ -523,9 +523,8 @@ If you want to test this solution you need:
 
 Here's a video on how it works...
 
-<video width="512" height="194" controls>
-  <source src="https://github.com/buchslava/sustainablereading/blob/master/images/limit.mp4" type="video/mp4">
-</video>
+
+[![Limit]()](https://github.com/buchslava/sustainablereading/blob/master/images/limit.mp4)
 
 ## Classes diagram
 
