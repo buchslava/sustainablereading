@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -16,7 +17,8 @@ const (
 )
 
 type App struct {
-	Router *mux.Router
+	Router       *mux.Router
+	RequestDelay int
 }
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -46,6 +48,10 @@ func Allow() bool {
 }
 
 func (a *App) getRandom(w http.ResponseWriter, r *http.Request) {
+	if a.RequestDelay > 0 {
+		time.Sleep(time.Duration(a.RequestDelay) * time.Second)
+	}
+
 	if Allow() == false {
 		w.WriteHeader(http.StatusForbidden)
 		fmt.Fprintf(w, "forbidden")
@@ -56,9 +62,10 @@ func (a *App) getRandom(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (a *App) Initialize() {
+func (a *App) Initialize(delay int) {
 	rand.Seed(time.Now().UnixNano())
 
+	a.RequestDelay = delay
 	a.Router = mux.NewRouter()
 	a.initializeRouters()
 	http.Handle("/", a.Router)
@@ -79,10 +86,21 @@ func main() {
 	a := App{}
 
 	port := "3100"
+	delay := 0
 	if len(os.Args) > 1 {
 		port = os.Args[1]
 	}
 
-	a.Initialize()
+	if len(os.Args) > 2 {
+		port = os.Args[1]
+		i, err := strconv.Atoi(os.Args[2])
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(2)
+		}
+		delay = i
+	}
+
+	a.Initialize(delay)
 	a.Run(port)
 }

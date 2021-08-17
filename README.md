@@ -32,6 +32,14 @@ Run `go run stub go 3200` if you want to run the application on port 3200
 
 Also [here](https://github.com/buchslava/sustainablereading/blob/master/stub/stub.go#L14-L15) you can change the rule regarding reading restrictions.
 
+This solution allows you to simulate the time delay in the processing of an HTTP request. In this case, you need to use the following format.
+
+```
+go run stub go <YOUR_PORT> <DELAY IN SECONDS>
+```
+
+Run `go run stub go 3100 10` if you want to run the application on port 3200 with a delay of 10 seconds per request.
+
 In addition, you can run the application many times on different ports.
 
 ### How to use
@@ -158,7 +166,6 @@ You can also add a new url a little later when the main logic works.
 ```
 
 5. There is the following logic in the [basic example](https://github.com/buchslava/sustainablereading/blob/master/demo/basic/demo.go)
-
 
 - Make a communication channel, main logic object and add 50 URLs to be processed
 - Wait for messages from the main logic: `case msg := <-ch:`
@@ -370,12 +377,13 @@ The [following example](https://github.com/buchslava/sustainablereading/blob/mas
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
 
-	. "sustainablereading"
+	. "github.com/buchslava/sustainablereading"
 )
 
 const (
@@ -385,7 +393,7 @@ const (
 func main() {
 	ch := make(chan Event)
 	sr := NewSustainableReading(10, ch)
-	sr.SetCustomReader(CustomReader("some additional"))
+	sr.SetCustomReader(CustomReader("some additionals"))
 	current := 1
 
 	for i := 1; i < Total+1; i++ {
@@ -416,31 +424,27 @@ Loop:
 }
 
 func CustomReader(additional interface{}) Readable {
-	return func(url string, ch chan<- string, msg chan Event) {
+	return func(url string, cb ReadCallback) {
 		resp, err := http.Get(url)
 
 		if err != nil {
-			msg <- Event{Kind: Error, Url: url, Err: err}
-			ch <- url
+			cb(err, nil)
 			return
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
-			msg <- Event{Kind: Error, Url: url, Data: resp.StatusCode}
-			ch <- url
+			cb(errors.New(fmt.Sprintf("Wrong status code: %d", resp.StatusCode)), nil)
 			return
 		}
 
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			msg <- Event{Kind: Error, Url: url, Err: err}
-			ch <- url
+			cb(err, nil)
 			return
 		}
 
-		fmt.Println(fmt.Sprintf("Use CustomReader with %s", additional))
-		msg <- Event{Kind: Data, Url: url, Data: body}
+		cb(nil, body)
 	}
 }
 
@@ -452,6 +456,74 @@ func TimeLabel() string {
 
 In the above example, we use the SetCustomReader function to override the default reader behavior. Also, take a look at the specific of CustomReader function. This function is a higher-order function. The main aim why we use it is we are able to pass some extra data and keep them in a closure.
 
+## How to limit the number of requests
+
+It is indeed possible that many URLs have been added for concurrent processing. Therefore, in this case, the idea of ​​limitation is important. The following example shows how to implement concurrent query limiting.
+
+```go
+package main
+
+import (
+	"fmt"
+	"time"
+
+	. "sustainablereading"
+)
+
+const (
+	Total = 50
+)
+
+func main() {
+	ch := make(chan Event)
+	sr := NewSustainableReading(10, ch)
+	sr.SetLimit(2)
+	current := 1
+
+	for i := 1; i < Total+1; i++ {
+		sr.Add(fmt.Sprintf("http://localhost:3100/data%d", i))
+	}
+
+Loop:
+	for {
+		select {
+		case msg := <-ch:
+			if msg.Kind == Data {
+				fmt.Println(TimeLabel(), current, "of", Total, msg.Url, string(msg.Data.([]byte)))
+				current = current + 1
+			}
+			if msg.Kind == Pause {
+				fmt.Println(TimeLabel(), "...")
+			}
+			if msg.Kind == SysError {
+				fmt.Println(TimeLabel(), msg.Err)
+			}
+		default:
+			if current > Total {
+				sr.Stop()
+				break Loop
+			}
+		}
+	}
+}
+
+func TimeLabel() string {
+	currentTime := time.Now()
+	return currentTime.Format("15:04:05")
+}
+```
+
+All that you need is just use `sr.SetLimit` function.
+
+If you want to test this solution you need:
+
+1. Change [QTY_LIMIT](https://github.com/buchslava/sustainablereading/blob/master/stub/stub.go#L14) to 100
+2. Run the Test Environment application: `go run stub.go 3100 10`
+3. Run the [demo](https://github.com/buchslava/sustainablereading/blob/master/demo/limit/demo.go).
+
+Here's a video on how it works...
+
+![](images/limit.mp4)
 
 ## Classes diagram
 

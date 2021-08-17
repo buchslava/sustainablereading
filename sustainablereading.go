@@ -1,8 +1,11 @@
 package sustainablereading
 
 import (
+	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	. "github.com/enriquebris/goconcurrentqueue"
@@ -10,7 +13,9 @@ import (
 
 type Type int
 
-type Readable func(url string, ch chan<- string, msg chan Event)
+type Readable func(url string, cb ReadCallback)
+
+type ReadCallback func(Err error, Data interface{})
 
 const (
 	Data Type = iota
@@ -28,19 +33,23 @@ type Event struct {
 }
 
 type Config struct {
-	Timeout      int
-	Queue        *FIFO
-	Msg          chan Event
-	Control      chan Type
-	CustomReader Readable
+	Timeout       int
+	Queue         *FIFO
+	Msg           chan Event
+	Control       chan Type
+	CustomReader  Readable
+	Limit         int
+	NumInProgress int32
 }
 
 func NewSustainableReading(timeout int, ch chan Event) *Config {
 	ret := &Config{
-		Timeout: timeout,
-		Queue:   NewFIFO(),
-		Msg:     ch,
-		Control: make(chan Type)}
+		Timeout:       timeout,
+		Queue:         NewFIFO(),
+		Msg:           ch,
+		Control:       make(chan Type),
+		Limit:         0,
+		NumInProgress: 0}
 	go ret.Process()
 
 	return ret
@@ -48,6 +57,14 @@ func NewSustainableReading(timeout int, ch chan Event) *Config {
 
 func (sr *Config) SetCustomReader(r Readable) {
 	sr.CustomReader = r
+}
+
+func (sr *Config) SetLimit(l int) {
+	sr.Limit = l
+}
+
+func (sr *Config) GetProcessesQuantity() int32 {
+	return atomic.LoadInt32(&sr.NumInProgress)
 }
 
 func (sr *Config) Add(url string) {
@@ -79,7 +96,9 @@ func (sr *Config) Process() {
 		default:
 			onTimer = false
 
-			if sr.Queue.GetLen() > 0 {
+			NumInProgressValue := atomic.LoadInt32(&sr.NumInProgress)
+
+			if sr.Queue.GetLen() > 0 && (sr.Limit == 0 || NumInProgressValue < int32(sr.Limit)) {
 				url, err := sr.Queue.Dequeue()
 
 				if err != nil {
@@ -87,38 +106,53 @@ func (sr *Config) Process() {
 					continue
 				}
 
+				atomic.AddInt32(&sr.NumInProgress, 1)
+
 				if sr.CustomReader != nil {
-					go sr.CustomReader(url.(string), ch, sr.Msg)
+					go sr.CustomReader(url.(string), func(Err error, Body interface{}) {
+						if Err != nil {
+							sr.Msg <- Event{Kind: Error, Url: url.(string), Err: err}
+							ch <- url.(string)
+						} else {
+							sr.Msg <- Event{Kind: Data, Url: url.(string), Data: Body}
+						}
+						atomic.AddInt32(&sr.NumInProgress, -1)
+					})
 				} else {
-					go Read(url.(string), ch, sr.Msg)
+					go Read(url.(string), func(Err error, Body interface{}) {
+						if Err != nil {
+							sr.Msg <- Event{Kind: Error, Url: url.(string), Err: err}
+							ch <- url.(string)
+						} else {
+							sr.Msg <- Event{Kind: Data, Url: url.(string), Data: Body}
+						}
+						atomic.AddInt32(&sr.NumInProgress, -1)
+					})
 				}
 			}
 		}
 	}
 }
 
-func Read(url string, ch chan<- string, msg chan Event) {
+func Read(url string, cb ReadCallback) {
 	resp, err := http.Get(url)
 
 	if err != nil {
-		msg <- Event{Kind: Error, Url: url, Err: err}
-		ch <- url
+		cb(err, nil)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		msg <- Event{Kind: Error, Url: url, Data: resp.StatusCode}
-		ch <- url
+		cb(errors.New(fmt.Sprintf("Wrong status code: %d", resp.StatusCode)), nil)
 		return
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		msg <- Event{Kind: Error, Url: url, Err: err}
-		ch <- url
+		cb(err, nil)
 		return
 	}
 
-	msg <- Event{Kind: Data, Url: url, Data: body}
+	cb(nil, body)
 }
