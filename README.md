@@ -71,7 +71,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/buchslava/sustainablereading"
+	. "github.com/buchslava/sustainablereading"
 )
 
 const (
@@ -79,8 +79,8 @@ const (
 )
 
 func main() {
-	ch := make(chan sustainablereading.Event)
-	sr := sustainablereading.NewSustainableReading(10, ch)
+	ch := make(chan Event)
+	sr := NewSustainableReading(10, ch)
 	current := 1
 
 	for i := 1; i < Total+1; i++ {
@@ -91,14 +91,14 @@ Loop:
 	for {
 		select {
 		case msg := <-ch:
-			if msg.Kind == sustainablereading.Data {
+			if msg.Kind == Data {
 				fmt.Println(TimeLabel(), current, "of", Total, msg.Url, string(msg.Data.([]byte)))
 				current = current + 1
 			}
-			if msg.Kind == sustainablereading.Pause {
+			if msg.Kind == Pause {
 				fmt.Println(TimeLabel(), "...")
 			}
-			if msg.Kind == sustainablereading.SysError {
+			if msg.Kind == SysError {
 				fmt.Println(TimeLabel(), msg.Err)
 			}
 		default:
@@ -121,13 +121,13 @@ Let's clarify some important points.
 1. First of all, you need to create a communication channel. It's mandatory because you need to receive messages from the solution.
 
 ```go
-ch := make(chan sustainablereading.Event)
+ch := make(chan Event)
 ```
 
 2. Second, you have to instantiate an object that represents the main logic
 
 ```go
-sr := sustainablereading.NewSustainableReading(10, ch)
+sr := NewSustainableReading(10, ch)
 ```
 
 and pass a communication channel into it.
@@ -171,8 +171,8 @@ const (
 
 // ...
 
-ch := make(chan sustainablereading.Event)
-sr := sustainablereading.NewSustainableReading(10, ch)
+ch := make(chan Event)
+sr := NewSustainableReading(10, ch)
 current := 1
 
 for i := 1; i < Total+1; i++ {
@@ -183,7 +183,7 @@ Loop:
 for {
 	select {
 	case msg := <-ch:
-		if msg.Kind == sustainablereading.Data {
+		if msg.Kind == Data {
 			fmt.Println(TimeLabel(), current, "of", Total, msg.Url, string(msg.Data.([]byte)))
 			current = current + 1
 		}
@@ -200,7 +200,7 @@ for {
 - If a URL processed successfully print the result and increase a counter:
 
 ```go
-if msg.Kind == sustainablereading.Data {
+if msg.Kind == Data {
 	fmt.Println(TimeLabel(), current, "of", Total, msg.Url, string(msg.Data.([]byte)))
 	current = current + 1
 }
@@ -267,7 +267,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/buchslava/sustainablereading"
+	. "github.com/buchslava/sustainablereading"
 )
 
 const (
@@ -276,10 +276,10 @@ const (
 )
 
 func main() {
-	chApi1 := make(chan sustainablereading.Event)
-	chApi2 := make(chan sustainablereading.Event)
-	srApi1 := sustainablereading.NewSustainableReading(10, chApi1)
-	srApi2 := sustainablereading.NewSustainableReading(20, chApi2)
+	chApi1 := make(chan Event)
+	chApi2 := make(chan Event)
+	srApi1 := NewSustainableReading(10, chApi1)
+	srApi2 := NewSustainableReading(20, chApi2)
 	currentApi1 := 1
 	currentApi2 := 1
 
@@ -307,17 +307,17 @@ Loop:
 	}
 }
 
-func GotMessage(api string, msg sustainablereading.Event, current *int, total int) {
+func GotMessage(api string, msg Event, current *int, total int) {
 	apiLabel := fmt.Sprintf("API#%s", api)
 
-	if msg.Kind == sustainablereading.Data {
+	if msg.Kind == Data {
 		fmt.Println(TimeLabel(), apiLabel, *current, "of", total, msg.Url, string(msg.Data.([]byte)))
 		*current = *current + 1
 	}
-	if msg.Kind == sustainablereading.Pause {
+	if msg.Kind == Pause {
 		fmt.Println(TimeLabel(), apiLabel, "...")
 	}
-	if msg.Kind == sustainablereading.SysError {
+	if msg.Kind == SysError {
 		fmt.Println(TimeLabel(), apiLabel, msg.Err)
 	}
 }
@@ -353,6 +353,105 @@ go run demo.go
 18:34:17 API#1 33 of 35 http://localhost:3100/data34 xbWyUoHYeopIXSMEeKAn
 18:34:17 API#1 34 of 35 http://localhost:3100/data8 jpXupQKCTCsIPwgsGdKL
 ```
+
+## Custom Reader
+
+In the basic version, this solution works with HTTP GET requests under the hood. Therefore, it is easy to notice that the following issues exist.
+
+1. What if we need to use a different request method, say POST?
+2. What if we have additional inputs like HTTP headers, security tokens passed as HTTP header value, etc?
+3. What if we have a more complex data flow, say a sequence of different connected HTTP requests?
+
+Surprisingly, there is only one simple answer to these difficult questions. The solution has the option to override the default read rules.
+
+The [following example](https://github.com/buchslava/sustainablereading/blob/master/demo/custom-reader/demo.go) shows how to do this easily.
+
+```go
+package main
+
+import (
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"time"
+
+	. "sustainablereading"
+)
+
+const (
+	Total = 50
+)
+
+func main() {
+	ch := make(chan Event)
+	sr := NewSustainableReading(10, ch)
+	sr.SetCustomReader(CustomReader("some additional"))
+	current := 1
+
+	for i := 1; i < Total+1; i++ {
+		sr.Add(fmt.Sprintf("http://localhost:3100/data%d", i))
+	}
+
+Loop:
+	for {
+		select {
+		case msg := <-ch:
+			if msg.Kind == Data {
+				fmt.Println(TimeLabel(), current, "of", Total, msg.Url, string(msg.Data.([]byte)))
+				current = current + 1
+			}
+			if msg.Kind == Pause {
+				fmt.Println(TimeLabel(), "...")
+			}
+			if msg.Kind == SysError {
+				fmt.Println(TimeLabel(), msg.Err)
+			}
+		default:
+			if current > Total {
+				sr.Stop()
+				break Loop
+			}
+		}
+	}
+}
+
+func CustomReader(additional interface{}) Readable {
+	return func(url string, ch chan<- string, msg chan Event) {
+		resp, err := http.Get(url)
+
+		if err != nil {
+			msg <- Event{Kind: Error, Url: url, Err: err}
+			ch <- url
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			msg <- Event{Kind: Error, Url: url, Data: resp.StatusCode}
+			ch <- url
+			return
+		}
+
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			msg <- Event{Kind: Error, Url: url, Err: err}
+			ch <- url
+			return
+		}
+
+		fmt.Println(fmt.Sprintf("Use CustomReader with %s", additional))
+		msg <- Event{Kind: Data, Url: url, Data: body}
+	}
+}
+
+func TimeLabel() string {
+	currentTime := time.Now()
+	return currentTime.Format("15:04:05")
+}
+```
+
+In the above example, we use the SetCustomReader function to override the default reader behavior. Also, take a look at the specific of CustomReader function. This function is a higher-order function. The main aim why we use it is we are able to pass some extra data and keep them in a closure.
+
 
 ## Classes diagram
 

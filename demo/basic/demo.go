@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"sustainablereading"
+	. "sustainablereading"
 )
 
 const (
@@ -12,8 +12,8 @@ const (
 )
 
 func main() {
-	ch := make(chan sustainablereading.Event)
-	sr := sustainablereading.NewSustainableReading(10, ch)
+	ch := make(chan Event)
+	sr := NewSustainableReading(10, ch)
 	current := 1
 
 	for i := 1; i < Total+1; i++ {
@@ -24,14 +24,14 @@ Loop:
 	for {
 		select {
 		case msg := <-ch:
-			if msg.Kind == sustainablereading.Data {
+			if msg.Kind == Data {
 				fmt.Println(TimeLabel(), current, "of", Total, msg.Url, string(msg.Data.([]byte)))
 				current = current + 1
 			}
-			if msg.Kind == sustainablereading.Pause {
+			if msg.Kind == Pause {
 				fmt.Println(TimeLabel(), "...")
 			}
-			if msg.Kind == sustainablereading.SysError {
+			if msg.Kind == SysError {
 				fmt.Println(TimeLabel(), msg.Err)
 			}
 		default:

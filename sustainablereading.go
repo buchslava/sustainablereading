@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/enriquebris/goconcurrentqueue"
+	. "github.com/enriquebris/goconcurrentqueue"
 )
 
 type Type int
@@ -29,7 +29,7 @@ type Event struct {
 
 type Config struct {
 	Timeout      int
-	Queue        *goconcurrentqueue.FIFO
+	Queue        *FIFO
 	Msg          chan Event
 	Control      chan Type
 	CustomReader Readable
@@ -38,7 +38,7 @@ type Config struct {
 func NewSustainableReading(timeout int, ch chan Event) *Config {
 	ret := &Config{
 		Timeout: timeout,
-		Queue:   goconcurrentqueue.NewFIFO(),
+		Queue:   NewFIFO(),
 		Msg:     ch,
 		Control: make(chan Type)}
 	go ret.Process()
