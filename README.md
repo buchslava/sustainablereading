@@ -521,10 +521,9 @@ If you want to test this solution you need:
 2. Run the Test Environment application: `go run stub.go 3100 10`
 3. Run the [demo](https://github.com/buchslava/sustainablereading/blob/master/demo/limit/demo.go).
 
-Here's a video on how it works...
+Here's a brief illustration on how it works...
 
-
-[![Limit](https://github.com/buchslava/sustainablereading/blob/master/images/limit.png)](https://github.com/buchslava/sustainablereading/blob/master/images/limit.mp4)
+![Limit](images/limit.png)
 
 ## Classes diagram
 
