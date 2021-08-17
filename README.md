@@ -524,7 +524,7 @@ If you want to test this solution you need:
 Here's a video on how it works...
 
 
-[![Limit]()](https://github.com/buchslava/sustainablereading/blob/master/images/limit.mp4)
+[![Limit](https://github.com/buchslava/sustainablereading/blob/master/images/limit.png)](https://github.com/buchslava/sustainablereading/blob/master/images/limit.mp4)
 
 ## Classes diagram
 
