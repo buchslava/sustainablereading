@@ -73,6 +73,12 @@ func (sr *Config) IsWorking() bool {
 	return processes > 0 && sr.Queue.GetLen() > 0
 }
 
+func (sr *Config) IsFree() bool {
+	processes := atomic.LoadInt32(&sr.NumInProgress)
+
+	return processes <= 0 && sr.Queue.GetLen() <= 0
+}
+
 func (sr *Config) Add(url string) {
 	sr.Queue.Enqueue(url)
 }
