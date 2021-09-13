@@ -11,14 +11,23 @@ import (
 	"github.com/gorilla/mux"
 )
 
+type Type int
+
+const (
+	NoRetryAfter Type = iota
+	RetryAfterSeconds
+	RetryAfterHttpTime
+)
+
 const (
 	QTY_LIMIT  = 4
 	TIME_LIMIT = 30
 )
 
 type App struct {
-	Router       *mux.Router
-	RequestDelay int
+	Router           *mux.Router
+	RequestDelay     int
+	RequestDelayType Type
 }
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -32,19 +41,22 @@ func RandStringRunes(n int) string {
 	return string(b)
 }
 
-func Allow() bool {
+func Allow() (bool, int) {
 	now := time.Now()
 	if len(times) <= 1 {
-		return true
+		return true, 0
 	}
 
 	qty := 0
+	rest := 0.0
 	for i := len(times) - 1; i >= 0; i-- {
 		if now.Sub(times[i]).Seconds() < TIME_LIMIT {
+			rest = now.Sub(times[i]).Seconds()
 			qty = qty + 1
 		}
 	}
-	return qty < QTY_LIMIT
+
+	return qty < QTY_LIMIT, int(rest)
 }
 
 func (a *App) getRandom(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +64,15 @@ func (a *App) getRandom(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(time.Duration(a.RequestDelay) * time.Second)
 	}
 
-	if Allow() == false {
+	isAllowed, rest := Allow()
+	if rest > 0 && a.RequestDelayType == RetryAfterSeconds {
+		w.Header().Set("Retry-After", strconv.Itoa(rest))
+	}
+	if rest > 0 && a.RequestDelayType == RetryAfterHttpTime {
+		w.Header().Set("Retry-After", time.Now().Add(time.Duration(rest)*time.Second).UTC().Format(http.TimeFormat))
+	}
+	if isAllowed == false {
+		// put the header
 		w.WriteHeader(http.StatusForbidden)
 		fmt.Fprintf(w, "forbidden")
 	} else {
@@ -62,10 +82,11 @@ func (a *App) getRandom(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (a *App) Initialize(delay int) {
+func (a *App) Initialize(delay int, retryAfter Type) {
 	rand.Seed(time.Now().UnixNano())
 
 	a.RequestDelay = delay
+	a.RequestDelayType = retryAfter
 	a.Router = mux.NewRouter()
 	a.initializeRouters()
 	http.Handle("/", a.Router)
@@ -87,6 +108,7 @@ func main() {
 
 	port := "3100"
 	delay := 0
+	retryAfter := NoRetryAfter
 	if len(os.Args) > 1 {
 		port = os.Args[1]
 	}
@@ -99,8 +121,16 @@ func main() {
 			os.Exit(2)
 		}
 		delay = i
+		if len(os.Args) > 3 {
+			if os.Args[3] == "SEC" {
+				retryAfter = RetryAfterSeconds
+			}
+			if os.Args[3] == "HTTP_DATE" {
+				retryAfter = RetryAfterHttpTime
+			}
+		}
 	}
 
-	a.Initialize(delay)
+	a.Initialize(delay, retryAfter)
 	a.Run(port)
 }
