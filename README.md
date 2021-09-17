@@ -425,26 +425,44 @@ Loop:
 
 func CustomReader(additional interface{}) Readable {
 	return func(url string, cb ReadCallback) {
-		resp, err := http.Get(url)
+	  resp, err := http.Get(url)
 
-		if err != nil {
-			cb(err, nil)
-			return
-		}
-		defer resp.Body.Close()
+	  if err != nil {
+		  cb(err, nil, 0)
+		  return
+	  }
+	  defer resp.Body.Close()
 
-		if resp.StatusCode != http.StatusOK {
-			cb(errors.New(fmt.Sprintf("Wrong status code: %d", resp.StatusCode)), nil)
-			return
-		}
+	  if resp.StatusCode != http.StatusOK {
+		  retryTime := resp.Header.Get("Retry-After")
 
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			cb(err, nil)
-			return
-		}
+		  if retryTime != "" {
+			  timeSec, timeSecErr := strconv.Atoi(retryTime)
 
-		cb(nil, body)
+			  if timeSecErr != nil {
+				  timeTime, timeTimeErr := time.Parse(http.TimeFormat, retryTime)
+
+				  if timeTimeErr == nil {
+					  cb(errors.New(fmt.Sprintf("Wrong status code: %d", resp.StatusCode)), nil, int(timeTime.Sub(time.Now()).Seconds()))
+					  return
+				  }
+	  	  } else {
+				  cb(errors.New(fmt.Sprintf("Wrong status code: %d", resp.StatusCode)), nil, timeSec)
+				  return
+			  }
+		  }
+
+		  cb(errors.New(fmt.Sprintf("Wrong status code: %d", resp.StatusCode)), nil, 0)
+		  return
+	  }
+
+	  body, err := ioutil.ReadAll(resp.Body)
+	  if err != nil {
+		  cb(err, nil, 0)
+		  return
+	  }
+
+	  cb(nil, body, 0)
 	}
 }
 
@@ -526,6 +544,35 @@ Here's a brief illustration on how it works...
 ![Limit](images/limit.png)
 
 PS: Also, the [following solution](https://github.com/korovkin/limiter) would be useful to understand limitation idea
+
+## Retry-After Supporting
+
+This solution supports a standard [Retry-After HTTP header](https://datatracker.ietf.org/doc/html/rfc7231#section-7.1.3) by default. If you want to see how does it work you should:
+
+* Run `go run stub.go 3100 1 SEC` or `go run stub.go 3100 1 HTTP_DATE`
+* Also, run `./demo/retry-after`
+
+The result should be somehow
+
+```
+go run demo
+17:38:31 1 of 10 http://localhost:3100/data10 ukFKgQqMBHPYRnUGEtjp
+17:38:31 2 of 10 http://localhost:3100/data5 wuGlryindeQGQhgsCyco
+17:38:31 3 of 10 http://localhost:3100/data7 KKodZHgRVxufCPyJMdPL
+17:38:31 ...
+17:38:31 4 of 10 http://localhost:3100/data8 iDFiGiqfAEEGtwBwkjQQ
+17:38:42 ... retry after 11 sec
+17:38:54 ... retry after 23 sec
+17:39:18 5 of 10 http://localhost:3100/data1 HndlXmlkhyCZYIJzTqIB
+17:39:18 6 of 10 http://localhost:3100/data4 egbJQZQCCWDZzpAllNur
+17:39:18 7 of 10 http://localhost:3100/data6 UOySOomNAQtairjxxcCz
+17:39:18 ...
+17:39:18 8 of 10 http://localhost:3100/data9 ibTclVdFZXMgeCRemEHA
+17:39:29 ... retry after 11 sec
+17:39:41 ... retry after 23 sec
+17:40:05 9 of 10 http://localhost:3100/data3 OGnZgdInaLMpWmGFHnaD
+17:40:05 10 of 10 http://localhost:3100/data2 jDBVRRGcPYeGXNRllzIU
+```
 
 ## Classes diagram
 

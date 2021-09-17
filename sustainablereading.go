@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"sync/atomic"
 	"time"
+	"strconv"
 
 	. "github.com/enriquebris/goconcurrentqueue"
 )
@@ -15,7 +16,7 @@ type Type int
 
 type Readable func(url string, cb ReadCallback)
 
-type ReadCallback func(Err error, Data interface{})
+type ReadCallback func(Err error, Data interface{}, retrySeconds int)
 
 const (
 	Data Type = iota
@@ -26,10 +27,11 @@ const (
 )
 
 type Event struct {
-	Kind Type
-	Url  string
-	Data interface{}
-	Err  error
+	Kind       Type
+	Url        string
+	Data       interface{}
+	Err        error
+	RetryAfter int
 }
 
 type Config struct {
@@ -88,7 +90,7 @@ func (sr *Config) Stop() {
 }
 
 func (sr *Config) Process() {
-	ch := make(chan string)
+	ch := make(chan struct {string; int})
 	onTimer := false
 	for {
 		select {
@@ -96,12 +98,17 @@ func (sr *Config) Process() {
 			if externalAction == Abandon {
 				break
 			}
-		case urlToQueue := <-ch:
-			sr.Queue.Enqueue(urlToQueue)
+		case backToQueue := <-ch:
+			sr.Queue.Enqueue(backToQueue.string)
 
 			if onTimer == false {
-				sr.Msg <- Event{Kind: Pause}
-				<-time.After(time.Duration(sr.Timeout) * time.Second)
+				if backToQueue.int > 0 {
+					sr.Msg <- Event{Kind: Pause, RetryAfter: backToQueue.int}
+					<-time.After(time.Duration(backToQueue.int) * time.Second)
+				} else {
+					sr.Msg <- Event{Kind: Pause}
+					<-time.After(time.Duration(sr.Timeout) * time.Second)
+				}
 			}
 
 			onTimer = true
@@ -121,20 +128,20 @@ func (sr *Config) Process() {
 				atomic.AddInt32(&sr.NumInProgress, 1)
 
 				if sr.CustomReader != nil {
-					go sr.CustomReader(url.(string), func(Err error, Body interface{}) {
+					go sr.CustomReader(url.(string), func(Err error, Body interface{}, RetryAfter int) {
 						if Err != nil {
-							sr.Msg <- Event{Kind: Error, Url: url.(string), Err: err}
-							ch <- url.(string)
+							sr.Msg <- Event{Kind: Error, Url: url.(string), Err: err, RetryAfter: RetryAfter}
+							ch <- struct {string; int}{url.(string), RetryAfter}
 						} else {
 							sr.Msg <- Event{Kind: Data, Url: url.(string), Data: Body}
 						}
 						atomic.AddInt32(&sr.NumInProgress, -1)
 					})
 				} else {
-					go Read(url.(string), func(Err error, Body interface{}) {
+					go Read(url.(string), func(Err error, Body interface{}, RetryAfter int) {
 						if Err != nil {
-							sr.Msg <- Event{Kind: Error, Url: url.(string), Err: err}
-							ch <- url.(string)
+							sr.Msg <- Event{Kind: Error, Url: url.(string), Err: Err, RetryAfter: RetryAfter}
+							ch <- struct {string; int}{url.(string), RetryAfter}
 						} else {
 							sr.Msg <- Event{Kind: Data, Url: url.(string), Data: Body}
 						}
@@ -150,21 +157,39 @@ func Read(url string, cb ReadCallback) {
 	resp, err := http.Get(url)
 
 	if err != nil {
-		cb(err, nil)
+		cb(err, nil, 0)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		cb(errors.New(fmt.Sprintf("Wrong status code: %d", resp.StatusCode)), nil)
+		retryTime := resp.Header.Get("Retry-After")
+
+		if retryTime != "" {
+			timeSec, timeSecErr := strconv.Atoi(retryTime)
+
+			if timeSecErr != nil {
+				timeTime, timeTimeErr := time.Parse(http.TimeFormat, retryTime)
+
+				if timeTimeErr == nil {
+					cb(errors.New(fmt.Sprintf("Wrong status code: %d", resp.StatusCode)), nil, int(timeTime.Sub(time.Now()).Seconds()))
+					return
+				}
+	  	} else {
+				cb(errors.New(fmt.Sprintf("Wrong status code: %d", resp.StatusCode)), nil, timeSec)
+				return
+			}
+		}
+
+		cb(errors.New(fmt.Sprintf("Wrong status code: %d", resp.StatusCode)), nil, 0)
 		return
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		cb(err, nil)
+		cb(err, nil, 0)
 		return
 	}
 
-	cb(nil, body)
+	cb(nil, body, 0)
 }

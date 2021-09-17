@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"time"
+	"strconv"
 
 	. "sustainablereading"
 )
@@ -52,24 +53,41 @@ func CustomReader(additional interface{}) Readable {
 		resp, err := http.Get(url)
 
 		if err != nil {
-			cb(err, nil)
+			cb(err, nil, 0)
 			return
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
-			cb(errors.New(fmt.Sprintf("Wrong status code: %d", resp.StatusCode)), nil)
+			retryTime := resp.Header.Get("Retry-After")
+
+			if retryTime != "" {
+				timeSec, err1 := strconv.Atoi(retryTime)
+
+				if err1 != nil {
+					timeTime, err2 := time.Parse(http.TimeFormat, retryTime)
+
+					if err2 == nil {
+						cb(errors.New(fmt.Sprintf("Wrong status code: %d", resp.StatusCode)), nil, int(timeTime.Sub(time.Now()).Seconds()))
+						return
+					}
+				} else {
+					cb(errors.New(fmt.Sprintf("Wrong status code: %d", resp.StatusCode)), nil, timeSec)
+					return
+				}
+			}
+
+			cb(errors.New(fmt.Sprintf("Wrong status code: %d", resp.StatusCode)), nil, 0)
 			return
 		}
 
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			cb(err, nil)
+			cb(err, nil, 0)
 			return
 		}
 
-		fmt.Println(fmt.Sprintf("Run CustomReader with %s", additional))
-		cb(nil, body)
+		cb(nil, body, 0)
 	}
 }
 

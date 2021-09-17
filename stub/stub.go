@@ -64,16 +64,23 @@ func (a *App) getRandom(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(time.Duration(a.RequestDelay) * time.Second)
 	}
 
+	retry := false
 	isAllowed, rest := Allow()
 	if rest > 0 && a.RequestDelayType == RetryAfterSeconds {
+		retry = true
 		w.Header().Set("Retry-After", strconv.Itoa(rest))
 	}
 	if rest > 0 && a.RequestDelayType == RetryAfterHttpTime {
+		retry = true
 		w.Header().Set("Retry-After", time.Now().Add(time.Duration(rest)*time.Second).UTC().Format(http.TimeFormat))
 	}
 	if isAllowed == false {
-		// put the header
-		w.WriteHeader(http.StatusForbidden)
+		if retry == true {
+			w.WriteHeader(http.StatusTooManyRequests)
+
+		} else {
+			w.WriteHeader(http.StatusForbidden)
+		}
 		fmt.Fprintf(w, "forbidden")
 	} else {
 		times = append(times, time.Now())
