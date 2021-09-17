@@ -87,6 +87,7 @@ func CustomReader(additional interface{}) Readable {
 			return
 		}
 
+		fmt.Println(fmt.Sprintf("Run CustomReader with %s", additional))
 		cb(nil, body, 0)
 	}
 }
